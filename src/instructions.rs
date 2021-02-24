@@ -123,8 +123,10 @@ instruction!(BRK, vec![0x00],
 );
 instruction!(BPL, vec![0x10],
     fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+        cpu.registers.increment_pc();
         if !cpu.registers.sr.negative {
-            cpu.registers.pc = (cpu.registers.pc as i16 + cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
+            let address = cpu.registers.increment_pc();
+            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address)) as u16;
             false
         } else {
             true
@@ -194,21 +196,31 @@ instruction!(BCC, vec![0x90],
 );
 instruction!(LDY, vec![0xA0, 0xA4, 0xB4, 0xAC, 0xBC],
     fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+        cpu.registers.increment_pc();
         match opcode {
             0xA0 => {
-                cpu.registers.y = cpu.get_memory_at_address(cpu.registers.pc + 1) as u8;
+                let address = cpu.registers.increment_pc();
+                cpu.registers.y = cpu.get_memory_at_address(address) as u8;
             },
             0xA4 => {
-                cpu.registers.y = cpu.get_memory_at_address((cpu.registers.pc + 1) & 0xFF) as u8;
+                let address = cpu.registers.increment_pc();
+                cpu.registers.y = cpu.get_memory_at_address(address & 0xFF) as u8;
             },
             0xB4 => {
-                cpu.registers.y = cpu.get_memory_at_address((cpu.registers.pc + 1) & 0xFF) as u8;
+                let address = cpu.registers.increment_pc();
+                let x_register = cpu.registers.x;
+                cpu.registers.y = cpu.get_memory_at_address(((address & 0xFF) as u8).wrapping_add(x_register) as u16) as u8;
             },
             0xAC => {
-                
+                let first_half = cpu.registers.increment_pc();
+                let second_half = cpu.registers.increment_pc();
+                cpu.registers.y = cpu.get_memory_at_address(first_half | (second_half << 8)) as u8;
             },
             0xBC => {
-                
+                let first_half = cpu.registers.increment_pc();
+                let second_half = cpu.registers.increment_pc();
+                let x_register = cpu.registers.x;
+                cpu.registers.y = cpu.get_memory_at_address((first_half | (second_half << 8)).wrapping_add(x_register as u16) as u16) as u8;
             },
             _ => {}
         }
