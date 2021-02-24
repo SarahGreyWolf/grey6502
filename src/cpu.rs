@@ -79,16 +79,27 @@ impl CPU {
         mem[0xFF44] = 0x18;
         Self {
             memory: mem,
+            stack: [0; 0xFF],
             registers: Registers::new(),
             instructions: Arc::new(init_instructions()),
         }
+    }
+
+    pub fn push_to_stack(&mut self, value: u8) {
+        self.stack[self.registers.sp as usize] = value;
+        self.registers.sp.wrapping_add(1);
+    }
+
+    pub fn pull_from_stack(&mut self) -> u8 {
+        self.registers.sp.wrapping_sub(1);
+        self.stack[self.registers.sp.wrapping_add(1) as usize]
     }
 
     pub fn get_memory_at_address(&self, address: u16) -> u8 {
         self.memory[address as usize]
     }
 
-    pub fn execute_instruction(&mut self, opcode: &u8, values: Vec<u8>) {
+    pub fn execute_instruction(&mut self, opcode: &u8, values: Vec<i16>) {
         let instructions = self.instructions.clone();
         let instruction = match instructions.iter().find(|i| i.get_opcodes().contains(opcode)) {
             Some(i) => i,
