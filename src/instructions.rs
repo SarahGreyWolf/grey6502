@@ -33,8 +33,8 @@ pub enum Mode {
 }
 
 pub trait Instruction {
-    fn get_opcodes(&self) -> Vec<u8>;
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool;
+    fn get_opcodes(&self) -> Vec<i16>;
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool;
 }
 
 #[macro_export]
@@ -42,11 +42,11 @@ macro_rules! instruction {
     ( $name:ident, $opcodes:expr, $execute:item) => {
         #[allow(dead_code)]
         pub struct $name {
-            opcodes: Vec<u8>,
+            opcodes: Vec<i16>,
         }
 
         impl Instruction for $name {
-            fn get_opcodes(&self) -> Vec<u8> {
+            fn get_opcodes(&self) -> Vec<i16> {
                 self.opcodes.clone()
             }
 
@@ -60,7 +60,7 @@ macro_rules! instruction {
             }
 
             #[allow(dead_code)]
-            pub fn get_opcode(&self, index: usize) -> u8 {
+            pub fn get_opcode(&self, index: usize) -> i16 {
                 self.opcodes[index]
             }
         }
@@ -109,18 +109,20 @@ pub fn init_instructions() -> Vec<Box<dyn Instruction>> {
 }
 
 instruction!(BRK, vec![0x00],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         cpu.push_to_stack((cpu.registers.pc + 2 >> 8) as u8);
         cpu.push_to_stack((cpu.registers.pc + 2) as u8);
         cpu.push_to_stack(u8::from(cpu.registers.sr));
         let interrupt: u8 = u8::from(cpu.registers.sr) & 0b100;
         cpu.registers.sr = StatRegister::from(interrupt);
-        cpu.registers.pc = (cpu.memory[(cpu.registers.pc + 1) as usize] as i16) as u16;
+        let memory_lock = cpu.memory.clone();
+        let memory = memory_lock.lock().unwrap();
+        cpu.registers.pc = (memory[(cpu.registers.pc + 1) as usize] as i16) as u16;
         false
     }
 );
 instruction!(BPL, vec![0x10],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         if !cpu.registers.sr.negative {
             cpu.registers.pc = (cpu.registers.pc as i16 + cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
             false
@@ -130,7 +132,7 @@ instruction!(BPL, vec![0x10],
     }
 );
 instruction!(JSR, vec![0x20],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         cpu.push_to_stack((cpu.registers.pc + 2 >> 8) as u8);
         cpu.push_to_stack((cpu.registers.pc + 2) as u8);
         cpu.registers.pc = (cpu.registers.pc as i16 + cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
@@ -138,7 +140,7 @@ instruction!(JSR, vec![0x20],
     }
 );
 instruction!(BMI, vec![0x30],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         if cpu.registers.sr.negative {
             cpu.registers.pc = (cpu.registers.pc as i16 + cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
             false
@@ -148,113 +150,114 @@ instruction!(BMI, vec![0x30],
     }
 );
 instruction!(RTI, vec![0x40],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         cpu.registers.sr = StatRegister::from(cpu.pull_from_stack());
         cpu.registers.pc = cpu.pull_from_stack() as u16 | ((cpu.pull_from_stack() as u16) << 8);
         false
     }
 );
 instruction!(BVC, vec![0x50],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         if !cpu.registers.sr.overflow {
-            cpu.registers.pc = (cpu.registers.pc as i16 + cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
+            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
             false
         } else {
+            println!("{:04x}", cpu.registers.pc);
             true
         }
     }
 );
 instruction!(RTS, vec![0x60],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         cpu.registers.pc = cpu.pull_from_stack() as u16 | ((cpu.pull_from_stack() as u16) << 8);
         false
     }
 );
 instruction!(BVS, vec![0x70],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(BCC, vec![0x90],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(LDY, vec![0xA0, 0xA4, 0xB4],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(BCS, vec![0xB0],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(CPY, vec![0xC0, 0xC4],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(BNE, vec![0xD0],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(CPX, vec![0xE0, 0xE4],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(BEQ, vec![0xF0],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(ORA, vec![0x01, 0x11, 0x05, 0x15],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(AND, vec![0x21, 0x31, 0x25, 0x35],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(EOR, vec![0x41, 0x51, 0x45, 0x55],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(ADC, vec![0x61, 0x71, 0x65, 0x75],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(STA, vec![0x81, 0x91, 0x85, 0x95],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(LDA, vec![0xA1, 0xB1, 0xA5, 0xB5],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(CMP, vec![0xC1, 0xD1, 0xC5, 0xD5],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(SBC, vec![0xE1, 0xF1, 0xE5, 0xF5],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(LDX, vec![0xA2, 0xA6, 0xB6],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         match opcode {
             0xA2 => {
-                cpu.registers.x = cpu.get_memory_at_address(cpu.registers.pc + 1);
+                cpu.registers.x = cpu.get_memory_at_address(cpu.registers.pc + 1) as u8;
                 true
             }
             _ => false
@@ -262,53 +265,53 @@ instruction!(LDX, vec![0xA2, 0xA6, 0xB6],
     }
 );
 instruction!(BIT, vec![0x24],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(STY, vec![0x84, 0x94],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(ASL, vec![0x06, 0x16],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(ROL, vec![0x26, 0x36],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(LSR, vec![0x46, 0x56],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(ROR, vec![0x66, 0x76],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(STX, vec![0x86, 0x96],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(DEC, vec![0xC6, 0xD6],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(INC, vec![0xE6, 0xF6],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );
 
 instruction!(NOP, vec![0xEA],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
         true
     }
 );

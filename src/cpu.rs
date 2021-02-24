@@ -1,7 +1,6 @@
-use core::time;
+use std::time::Duration;
 use std::{fmt::Display, sync::Arc};
-
-use time::Duration;
+use std::sync::Mutex;
 
 use crate::{instructions::{Instruction, init_instructions, Mode}};
 
@@ -95,7 +94,7 @@ impl Registers {
 
 pub struct CPU {
     speed: std::time::Duration,
-    pub memory: Arc<[u8; 0xFFFF]>,
+    pub memory: Arc<Mutex<[i16; 0xFFFF]>>,
     // Possibly change this so the stack uses space in memory
     pub stack: [u8; 0xFF],
     pub registers: Registers,
@@ -127,10 +126,10 @@ impl Display for CPU {
 
 impl CPU {
     pub fn new() -> Self {
-        let mem: [u8; 0xFFFF] = [0xEA; 0xFFFF];
+        let mem: [i16; 0xFFFF] = [0xEA; 0xFFFF];
         Self {
-            speed: std::time::Duration::from_secs(1),
-            memory: Arc::new(mem),
+            speed: std::time::Duration::from_millis(750),
+            memory: Arc::new(Mutex::new(mem)),
             stack: [0; 0xFF],
             registers: Registers::new(),
             instructions: Arc::new(init_instructions()),
@@ -138,11 +137,14 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
-        let memory = self.memory.clone();
+        let memory_lock = self.memory.clone();
         let mut time = std::time::Instant::now();
         loop {
+            let memory = memory_lock.lock().unwrap();
             if time.elapsed() >= self.speed {
-                self.execute_instruction(&memory[self.registers.pc as usize]);
+                let instruct = memory[self.registers.pc as usize];
+                drop(memory);
+                self.execute_instruction(&instruct);
                 println!("{}", self);
                 time = std::time::Instant::now();
             }
@@ -165,11 +167,15 @@ impl CPU {
         self.stack[self.registers.sp.wrapping_add(1) as usize]
     }
 
-    pub fn get_memory_at_address(&self, address: u16) -> u8 {
-        self.memory[address as usize]
+    pub fn get_memory_at_address(&self, address: u16) -> i16 {
+        let memory_lock = self.memory.clone();
+        let memory = memory_lock.lock().expect("Failed to lock memory");
+        let out = memory[address as usize];
+        drop(memory);
+        out
     }
 
-    pub fn execute_instruction(&mut self, opcode: &u8) {
+    pub fn execute_instruction(&mut self, opcode: &i16) {
         let instructions = self.instructions.clone();
         let instruction = match instructions.iter().find(|i| i.get_opcodes().contains(opcode)) {
             Some(i) => i,
