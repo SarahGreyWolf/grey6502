@@ -90,6 +90,15 @@ impl Registers {
             sp: 0
         }
     }
+
+    pub fn increment_pc(&mut self) -> u16 {
+        self.pc += 1;
+        self.pc - 1
+    }
+    pub fn decrement_pc(&mut self) -> u16 {
+        self.pc -= 1;
+        self.pc + 1
+    }
 }
 
 pub struct CPU {
@@ -184,7 +193,7 @@ impl CPU {
             }
         };
         if instruction.execute(opcode, self) {
-            self.registers.pc += 1;
+            self.registers.increment_pc();
         }
     }
 }
