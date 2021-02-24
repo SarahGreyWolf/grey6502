@@ -99,7 +99,7 @@ impl CPU {
         self.memory[address as usize]
     }
 
-    pub fn execute_instruction(&mut self, opcode: &u8, values: Vec<i16>) {
+    pub fn execute_instruction(&mut self, opcode: &u8) {
         let instructions = self.instructions.clone();
         let instruction = match instructions.iter().find(|i| i.get_opcodes().contains(opcode)) {
             Some(i) => i,
@@ -107,6 +107,8 @@ impl CPU {
                 panic!("An unknown instruction was called");
             }
         };
-        instruction.execute(opcode, values, self);
+        if instruction.execute(opcode, self) {
+            self.registers.pc += 1;
+        }
     }
 }
