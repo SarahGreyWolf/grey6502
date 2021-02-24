@@ -67,6 +67,8 @@ impl Registers {
 
 pub struct CPU {
     pub memory: [u8; 0xFFFF],
+    // Possibly change this so the stack uses space in memory
+    pub stack: [u8; 0xFF],
     pub registers: Registers,
     pub instructions: Arc<Vec<Box<dyn Instruction>>>,
 }
