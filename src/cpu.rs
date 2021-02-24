@@ -2,15 +2,16 @@ use std::sync::Arc;
 
 use crate::{instructions::{Instruction, init_instructions, Mode}};
 
+#[derive(Clone, Copy)]
 pub struct StatRegister {
-    negative: bool,
-    overflow: bool,
-    ignored: bool,
-    sbreak: bool,
-    decimal: bool,
-    interrupt: bool,
-    zero: bool,
-    carry: bool
+    pub negative: bool,
+    pub overflow: bool,
+    pub ignored: bool,
+    pub sbreak: bool,
+    pub decimal: bool,
+    pub interrupt: bool,
+    pub zero: bool,
+    pub carry: bool
 }
 
 impl From<u8> for StatRegister {
@@ -25,6 +26,20 @@ impl From<u8> for StatRegister {
             zero: byte & 0x40 == 1,
             carry: byte & 0x80 == 1,
         }
+    }
+}
+
+impl From<StatRegister> for u8 {
+
+    fn from(statreg: StatRegister) -> Self {
+        (statreg.negative as u8)  << 7  |
+        (statreg.overflow as u8)  << 6  |
+        (statreg.ignored as u8)   << 5  |
+        (statreg.sbreak as u8)    << 4  |
+        (statreg.decimal as u8)   << 3  |
+        (statreg.interrupt as u8) << 2  |
+        (statreg.zero as u8)      << 1  |
+        statreg.carry as u8
     }
 }
 
@@ -79,6 +94,6 @@ impl CPU {
                 panic!("An unknown instruction was called");
             }
         };
-        instruction.execute(opcode, values, Mode::Immediate, self);
+        instruction.execute(opcode, values, self);
     }
 }

@@ -1,4 +1,4 @@
-use crate::CPU;
+use crate::{CPU, cpu::StatRegister};
 
 // Operates in Little-Endian, lowest byte first then highest byte
 pub enum Mode {
@@ -34,7 +34,7 @@ pub enum Mode {
 
 pub trait Instruction {
     fn get_opcodes(&self) -> Vec<u8>;
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU);
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU);
 }
 
 #[macro_export]
@@ -108,122 +108,125 @@ pub fn init_instructions() -> Vec<Box<dyn Instruction>> {
 }
 
 instruction!(BRK, vec![0x00],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {}
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
+        let interrupt: u8 = u8::from(cpu.registers.sr) & 0b100;
+        cpu.registers.sr = StatRegister::from(interrupt);
+    }
 );
 instruction!(BPL, vec![0x10],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
-
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
+        cpu.registers.pc = (cpu.registers.pc as i16 + values[0]) as u16;
     }
 );
 instruction!(JSR, vec![0x20],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
-
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
+        
     }
 );
 instruction!(BMI, vec![0x30],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(RTI, vec![0x40],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(BVC, vec![0x50],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(RTS, vec![0x60],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(BVS, vec![0x70],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(BCC, vec![0x90],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(LDY, vec![0xA0, 0xA4, 0xB4],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(BCS, vec![0xB0],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(CPY, vec![0xC0, 0xC4],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(BNE, vec![0xD0],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(CPX, vec![0xE0, 0xE4],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(BEQ, vec![0xF0],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(ORA, vec![0x01, 0x11, 0x05, 0x15],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(AND, vec![0x21, 0x31, 0x25, 0x35],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(EOR, vec![0x41, 0x51, 0x45, 0x55],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(ADC, vec![0x61, 0x71, 0x65, 0x75],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(STA, vec![0x81, 0x91, 0x85, 0x95],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(LDA, vec![0xA1, 0xB1, 0xA5, 0xB5],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(CMP, vec![0xC1, 0xD1, 0xC5, 0xD5],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(SBC, vec![0xE1, 0xF1, 0xE5, 0xF5],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(LDX, vec![0xA2, 0xA6, 0xB6],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
-        match mode {
-            Mode::Immediate => {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
+        match opcode {
+            0xA2 => {
                 let address: u16 = values[0] as u16 | (values[1] as u16) << 8;
                 cpu.registers.x = cpu.get_memory_at_address(address);
             }
@@ -232,47 +235,47 @@ instruction!(LDX, vec![0xA2, 0xA6, 0xB6],
     }
 );
 instruction!(BIT, vec![0x24],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(STY, vec![0x84, 0x94],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(ASL, vec![0x06, 0x16],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(ROL, vec![0x26, 0x36],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(LSR, vec![0x46, 0x56],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(ROR, vec![0x66, 0x76],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(STX, vec![0x86, 0x96],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(DEC, vec![0xC6, 0xD6],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
 instruction!(INC, vec![0xE6, 0xF6],
-    fn execute(&self, opcode: &u8, values: Vec<u8>, mode: Mode, cpu: &mut CPU) {
+    fn execute(&self, opcode: &u8, values: Vec<i16>, cpu: &mut CPU) {
 
     }
 );
