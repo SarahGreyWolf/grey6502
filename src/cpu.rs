@@ -112,7 +112,7 @@ impl Display for CPU {
                     x: {:04x},
                     y: {:04x},
                     sp: {:04x},
-                    sr: {}
+                        {}
             ",
             self.registers.pc,
             self.registers.ac,
@@ -142,10 +142,10 @@ impl CPU {
         loop {
             let memory = memory_lock.lock().unwrap();
             if time.elapsed() >= self.speed {
+                println!("{}", self);
                 let instruct = memory[self.registers.pc as usize];
                 drop(memory);
                 self.execute_instruction(&instruct);
-                println!("{}", self);
                 time = std::time::Instant::now();
             }
         }

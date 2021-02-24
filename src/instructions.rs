@@ -162,7 +162,6 @@ instruction!(BVC, vec![0x50],
             cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
             false
         } else {
-            println!("{:04x}", cpu.registers.pc);
             true
         }
     }
@@ -175,16 +174,44 @@ instruction!(RTS, vec![0x60],
 );
 instruction!(BVS, vec![0x70],
     fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
-        true
+        if cpu.registers.sr.overflow {
+            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
+            false
+        } else {
+            true
+        }
     }
 );
 instruction!(BCC, vec![0x90],
     fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
-        true
+        if !cpu.registers.sr.carry {
+            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
+            false
+        } else {
+            true
+        }
     }
 );
-instruction!(LDY, vec![0xA0, 0xA4, 0xB4],
+instruction!(LDY, vec![0xA0, 0xA4, 0xB4, 0xAC, 0xBC],
     fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+        match opcode {
+            0xA0 => {
+                cpu.registers.y = cpu.get_memory_at_address(cpu.registers.pc + 1) as u8;
+            },
+            0xA4 => {
+                cpu.registers.y = cpu.get_memory_at_address((cpu.registers.pc + 1) & 0xFF) as u8;
+            },
+            0xB4 => {
+                cpu.registers.y = cpu.get_memory_at_address((cpu.registers.pc + 1) & 0xFF) as u8;
+            },
+            0xAC => {
+                
+            },
+            0xBC => {
+                
+            },
+            _ => {}
+        }
         true
     }
 );
