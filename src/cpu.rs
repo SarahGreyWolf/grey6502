@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use core::time;
+use std::{fmt::Display, sync::Arc};
+
+use time::Duration;
 
 use crate::{instructions::{Instruction, init_instructions, Mode}};
 
@@ -12,6 +15,32 @@ pub struct StatRegister {
     pub interrupt: bool,
     pub zero: bool,
     pub carry: bool
+}
+
+impl Display for StatRegister {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, 
+            r"
+                    StatRegister:
+                        negative: {},
+                        overflow: {},
+                        ignored: {},
+                        sbreak: {},
+                        decimal: {},
+                        interrupt: {},
+                        zero: {},
+                        carry: {}
+            ",
+            self.negative,
+            self.overflow,
+            self.ignored,
+            self.sbreak,
+            self.decimal,
+            self.interrupt,
+            self.zero,
+            self.carry
+        )
+    }
 }
 
 impl From<u8> for StatRegister {
@@ -30,7 +59,6 @@ impl From<u8> for StatRegister {
 }
 
 impl From<StatRegister> for u8 {
-
     fn from(statreg: StatRegister) -> Self {
         (statreg.negative as u8)  << 7  |
         (statreg.overflow as u8)  << 6  |
@@ -66,32 +94,74 @@ impl Registers {
 }
 
 pub struct CPU {
-    pub memory: [u8; 0xFFFF],
+    speed: std::time::Duration,
+    pub memory: Arc<[u8; 0xFFFF]>,
     // Possibly change this so the stack uses space in memory
     pub stack: [u8; 0xFF],
     pub registers: Registers,
     pub instructions: Arc<Vec<Box<dyn Instruction>>>,
 }
 
+impl Display for CPU {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, 
+            r"
+            CPU:
+                Registers:
+                    pc: {:04x},
+                    ac: {:04x},
+                    x: {:04x},
+                    y: {:04x},
+                    sp: {:04x},
+                    sr: {}
+            ",
+            self.registers.pc,
+            self.registers.ac,
+            self.registers.x,
+            self.registers.y,
+            self.registers.sp,
+            self.registers.sr
+        )
+    }
+}
+
 impl CPU {
     pub fn new() -> Self {
-        let mut mem: [u8; 0xFFFF] = [0; 0xFFFF];
-        mem[0xFF44] = 0x18;
+        let mem: [u8; 0xFFFF] = [0xEA; 0xFFFF];
         Self {
-            memory: mem,
+            speed: std::time::Duration::from_secs(1),
+            memory: Arc::new(mem),
             stack: [0; 0xFF],
             registers: Registers::new(),
             instructions: Arc::new(init_instructions()),
         }
     }
 
+    pub fn run(&mut self) {
+        let memory = self.memory.clone();
+        let mut time = std::time::Instant::now();
+        loop {
+            if time.elapsed() >= self.speed {
+                self.execute_instruction(&memory[self.registers.pc as usize]);
+                println!("{}", self);
+                time = std::time::Instant::now();
+            }
+        }
+    }
+
     pub fn push_to_stack(&mut self, value: u8) {
+        if self.registers.sp as usize == self.stack.len() {
+            self.registers.sp = 0;
+        }
         self.stack[self.registers.sp as usize] = value;
-        self.registers.sp.wrapping_add(1);
+        self.registers.sp = self.registers.sp.wrapping_add(1);
     }
 
     pub fn pull_from_stack(&mut self) -> u8 {
-        self.registers.sp.wrapping_sub(1);
+        if self.registers.sp as usize == 0 {
+            self.registers.sp = self.stack.len() as u8;
+        }
+        self.registers.sp = self.registers.sp.wrapping_sub(1);
         self.stack[self.registers.sp.wrapping_add(1) as usize]
     }
 

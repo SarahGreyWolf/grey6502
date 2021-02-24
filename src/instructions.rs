@@ -103,13 +103,15 @@ pub fn init_instructions() -> Vec<Box<dyn Instruction>> {
     instructions.push(Box::new(STX::new()));
     instructions.push(Box::new(DEC::new()));
     instructions.push(Box::new(INC::new()));
+    instructions.push(Box::new(NOP::new()));
 
     instructions
 }
 
 instruction!(BRK, vec![0x00],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
-        cpu.push_to_stack(cpu.registers.sp + 2);
+        cpu.push_to_stack((cpu.registers.pc + 2 >> 8) as u8);
+        cpu.push_to_stack((cpu.registers.pc + 2) as u8);
         cpu.push_to_stack(u8::from(cpu.registers.sr));
         let interrupt: u8 = u8::from(cpu.registers.sr) & 0b100;
         cpu.registers.sr = StatRegister::from(interrupt);
@@ -148,7 +150,7 @@ instruction!(BMI, vec![0x30],
 instruction!(RTI, vec![0x40],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         cpu.registers.sr = StatRegister::from(cpu.pull_from_stack());
-        cpu.registers.pc = cpu.pull_from_stack() as u16 | (cpu.pull_from_stack() << 8) as u16;
+        cpu.registers.pc = cpu.pull_from_stack() as u16 | ((cpu.pull_from_stack() as u16) << 8);
         false
     }
 );
@@ -164,7 +166,7 @@ instruction!(BVC, vec![0x50],
 );
 instruction!(RTS, vec![0x60],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
-        cpu.registers.sp = cpu.pull_from_stack() | cpu.pull_from_stack() << 8;
+        cpu.registers.pc = cpu.pull_from_stack() as u16 | ((cpu.pull_from_stack() as u16) << 8);
         false
     }
 );
