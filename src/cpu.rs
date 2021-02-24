@@ -92,11 +92,15 @@ impl Registers {
     }
 
     pub fn increment_pc(&mut self) -> u16 {
-        self.pc += 1;
+        self.pc = self.pc.wrapping_add(1);
+        self.pc
+    }
+    pub fn increment_pc_by(&mut self, amount: u16) -> u16 {
+        self.pc = self.pc.wrapping_add(amount);
         self.pc
     }
     pub fn decrement_pc(&mut self) -> u16 {
-        self.pc -= 1;
+        self.pc = self.pc.wrapping_sub(1);
         self.pc
     }
 }
@@ -134,10 +138,10 @@ impl Display for CPU {
 }
 
 impl CPU {
-    pub fn new() -> Self {
+    pub fn new(speed: std::time::Duration) -> Self {
         let mem: [i16; 0xFFFF] = [0xEA; 0xFFFF];
         Self {
-            speed: std::time::Duration::from_millis(750),
+            speed,
             memory: Arc::new(Mutex::new(mem)),
             stack: [0; 0xFF],
             registers: Registers::new(),
@@ -176,10 +180,25 @@ impl CPU {
         self.stack[self.registers.sp.wrapping_add(1) as usize]
     }
 
-    pub fn get_memory_at_address(&self, address: u16) -> i16 {
+    pub fn get_memory_at_address(&mut self, address: u16) -> i16 {
         let memory_lock = self.memory.clone();
         let memory = memory_lock.lock().expect("Failed to lock memory");
+        let mut address = address;
+        if memory.len() == address as usize {
+            address = self.registers.increment_pc();
+        }
         let out = memory[address as usize];
+        drop(memory);
+        out
+    }
+    pub fn get_umemory_at_address(&mut self, address: u16) -> u8 {
+        let memory_lock = self.memory.clone();
+        let memory = memory_lock.lock().expect("Failed to lock memory");
+        let mut address = address;
+        if memory.len() == address as usize {
+            address = self.registers.increment_pc();
+        }
+        let out = memory[address as usize] as u8;
         drop(memory);
         out
     }
@@ -189,11 +208,12 @@ impl CPU {
         let instruction = match instructions.iter().find(|i| i.get_opcodes().contains(opcode)) {
             Some(i) => i,
             None => {
-                panic!("An unknown instruction was called");
+                panic!("An unknown instruction was called at address: {:04x}:{:04x}", self.registers.sp, opcode);
             }
         };
         if instruction.execute(opcode, self) {
-            self.registers.increment_pc();
+            let address = self.registers.increment_pc();
+            println!("{:04x}:{:04x}", address, self.get_umemory_at_address(address));
         }
     }
 }
