@@ -123,7 +123,6 @@ instruction!(BRK, vec![0x00],
 );
 instruction!(BPL, vec![0x10],
     fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
-        cpu.registers.increment_pc();
         if !cpu.registers.sr.negative {
             let address = cpu.registers.increment_pc();
             cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address)) as u16;
@@ -196,7 +195,6 @@ instruction!(BCC, vec![0x90],
 );
 instruction!(LDY, vec![0xA0, 0xA4, 0xB4, 0xAC, 0xBC],
     fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
-        cpu.registers.increment_pc();
         match opcode {
             0xA0 => {
                 let address = cpu.registers.increment_pc();

@@ -11,7 +11,7 @@ fn main() {
     mem[2] = 0xA0;
     mem[3] = 0x05;
 
-    mem[10] = 0x10;
+    mem[10] = 0xD0;
     mem[11] = -0x02;
     drop(mem);
     cpu.run();

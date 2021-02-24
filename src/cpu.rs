@@ -93,11 +93,11 @@ impl Registers {
 
     pub fn increment_pc(&mut self) -> u16 {
         self.pc += 1;
-        self.pc - 1
+        self.pc
     }
     pub fn decrement_pc(&mut self) -> u16 {
         self.pc -= 1;
-        self.pc + 1
+        self.pc
     }
 }
 
