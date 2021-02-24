@@ -229,7 +229,12 @@ instruction!(LDY, vec![0xA0, 0xA4, 0xB4, 0xAC, 0xBC],
 );
 instruction!(BCS, vec![0xB0],
     fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
-        true
+        if cpu.registers.sr.carry {
+            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
+            false
+        } else {
+            true
+        }
     }
 );
 instruction!(CPY, vec![0xC0, 0xC4],
