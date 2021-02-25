@@ -33,8 +33,8 @@ pub enum Mode {
 }
 
 pub trait Instruction {
-    fn get_opcodes(&self) -> Vec<i16>;
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool;
+    fn get_opcodes(&self) -> Vec<u8>;
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool;
 }
 
 #[macro_export]
@@ -42,11 +42,11 @@ macro_rules! instruction {
     ( $name:ident, $opcodes:expr, $execute:item) => {
         #[allow(dead_code)]
         pub struct $name {
-            opcodes: Vec<i16>,
+            opcodes: Vec<u8>,
         }
 
         impl Instruction for $name {
-            fn get_opcodes(&self) -> Vec<i16> {
+            fn get_opcodes(&self) -> Vec<u8> {
                 self.opcodes.clone()
             }
 
@@ -60,7 +60,7 @@ macro_rules! instruction {
             }
 
             #[allow(dead_code)]
-            pub fn get_opcode(&self, index: usize) -> i16 {
+            pub fn get_opcode(&self, index: usize) -> u8 {
                 self.opcodes[index]
             }
         }
@@ -109,7 +109,7 @@ pub fn init_instructions() -> Vec<Box<dyn Instruction>> {
 }
 
 instruction!(BRK, vec![0x00],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         let current_address = cpu.registers.increment_pc_by(2);
         cpu.push_to_stack((current_address >> 8) as u8);
         cpu.push_to_stack((current_address) as u8);
@@ -123,10 +123,10 @@ instruction!(BRK, vec![0x00],
     }
 );
 instruction!(BPL, vec![0x10],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         let address = cpu.registers.increment_pc();
         if !cpu.registers.sr.negative {
-            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address)) as u16;
+            cpu.registers.pc = (cpu.registers.pc).wrapping_add(cpu.get_memory_at_address(address) as u16) as u16;
             false
         } else {
             cpu.registers.increment_pc();
@@ -135,7 +135,7 @@ instruction!(BPL, vec![0x10],
     }
 );
 instruction!(JSR, vec![0x20],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         cpu.push_to_stack((cpu.registers.pc + 2 >> 8) as u8);
         cpu.push_to_stack((cpu.registers.pc + 2) as u8);
         cpu.registers.pc = (cpu.registers.pc as i16 + cpu.get_memory_at_address(cpu.registers.pc + 1) as i16) as u16;
@@ -143,10 +143,15 @@ instruction!(JSR, vec![0x20],
     }
 );
 instruction!(BMI, vec![0x30],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         let address = cpu.registers.increment_pc();
         if cpu.registers.sr.negative {
-            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address) as i16) as u16;
+            let memory = cpu.get_memory_at_address(address);
+            if memory & 0x80 == 1 {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_sub(memory as u16);
+            } else {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_add(memory as u16);
+            }
             false
         } else {
             cpu.registers.increment_pc();
@@ -155,17 +160,22 @@ instruction!(BMI, vec![0x30],
     }
 );
 instruction!(RTI, vec![0x40],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         cpu.registers.sr = StatRegister::from(cpu.pull_from_stack());
         cpu.registers.pc = cpu.pull_from_stack() as u16 | ((cpu.pull_from_stack() as u16) << 8);
         false
     }
 );
 instruction!(BVC, vec![0x50],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         let address = cpu.registers.increment_pc();
         if !cpu.registers.sr.overflow {
-            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address) as i16) as u16;
+            let memory = cpu.get_memory_at_address(address);
+            if memory & 0x80 == 1 {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_sub(memory as u16);
+            } else {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_add(memory as u16);
+            }
             false
         } else {
             cpu.registers.increment_pc();
@@ -174,16 +184,21 @@ instruction!(BVC, vec![0x50],
     }
 );
 instruction!(RTS, vec![0x60],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         cpu.registers.pc = cpu.pull_from_stack() as u16 | ((cpu.pull_from_stack() as u16) << 8);
         false
     }
 );
 instruction!(BVS, vec![0x70],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         let address = cpu.registers.increment_pc();
         if cpu.registers.sr.overflow {
-            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address) as i16) as u16;
+            let memory = cpu.get_memory_at_address(address);
+            if memory & 0x80 == 1 {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_sub(memory as u16);
+            } else {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_add(memory as u16);
+            }
             false
         } else {
             cpu.registers.increment_pc();
@@ -192,10 +207,15 @@ instruction!(BVS, vec![0x70],
     }
 );
 instruction!(BCC, vec![0x90],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         let address = cpu.registers.increment_pc();
         if !cpu.registers.sr.carry {
-            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address) as i16) as u16;   
+            let memory = cpu.get_memory_at_address(address);
+            if memory & 0x80 == 1 {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_sub(memory as u16);
+            } else {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_add(memory as u16);
+            }
             false
         } else {
             cpu.registers.increment_pc();
@@ -204,7 +224,7 @@ instruction!(BCC, vec![0x90],
     }
 );
 instruction!(LDY, vec![0xA0, 0xA4, 0xB4, 0xAC, 0xBC],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         let mut memory: u8 = 0x00;
         match opcode {
             0xA0 => {
@@ -246,10 +266,15 @@ instruction!(LDY, vec![0xA0, 0xA4, 0xB4, 0xAC, 0xBC],
     }
 );
 instruction!(BCS, vec![0xB0],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         let address = cpu.registers.increment_pc();
         if cpu.registers.sr.carry {
-            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address) as i16) as u16;
+            let memory = cpu.get_memory_at_address(address);
+            if memory & 0x80 == 1 {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_sub(memory as u16);
+            } else {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_add(memory as u16);
+            }
             false
         } else {
             cpu.registers.increment_pc();
@@ -258,7 +283,7 @@ instruction!(BCS, vec![0xB0],
     }
 );
 instruction!(CPY, vec![0xC0, 0xC4, 0xCC],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         let mut memory: u8 = 0x00;
         let address = cpu.registers.increment_pc();
         match opcode {
@@ -285,10 +310,15 @@ instruction!(CPY, vec![0xC0, 0xC4, 0xCC],
     }
 );
 instruction!(BNE, vec![0xD0],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         let address = cpu.registers.increment_pc();
         if !cpu.registers.sr.zero {
-            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address) as i16) as u16;
+            let memory = cpu.get_memory_at_address(address);
+            if memory & 0x80 == 1 {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_sub(memory as u16);
+            } else {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_add(memory as u16);
+            }
             false
         } else {
             true
@@ -296,7 +326,7 @@ instruction!(BNE, vec![0xD0],
     }
 );
 instruction!(CPX, vec![0xE0, 0xE4],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         let mut memory: u8 = 0x00;
         let address = cpu.registers.increment_pc();
         match opcode {
@@ -323,10 +353,15 @@ instruction!(CPX, vec![0xE0, 0xE4],
     }
 );
 instruction!(BEQ, vec![0xF0],
-    fn execute(&self, _opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
         let address = cpu.registers.increment_pc();
         if cpu.registers.sr.zero {
-            cpu.registers.pc = (cpu.registers.pc as i16).wrapping_add(cpu.get_memory_at_address(address) as i16) as u16;
+            let memory = cpu.get_memory_at_address(address);
+            if memory & 0x80 == 1 {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_sub(memory as u16);
+            } else {
+                cpu.registers.pc = (cpu.registers.pc).wrapping_add(memory as u16);
+            }
             false
         } else {
             true
@@ -334,7 +369,7 @@ instruction!(BEQ, vec![0xF0],
     }
 );
 instruction!(ORA, vec![0x09, 0x05, 0x15, 0x0D, 0x1D, 0x19, 0x01, 0x11],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         let mut memory = 0x00;
         match opcode {
             0x09 => {
@@ -396,7 +431,7 @@ instruction!(ORA, vec![0x09, 0x05, 0x15, 0x0D, 0x1D, 0x19, 0x01, 0x11],
     }
 );
 instruction!(AND, vec![0x29, 0x25, 0x35, 0x2D, 0x3D, 0x39, 0x21, 0x31],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         let mut memory = 0x00;
         match opcode {
             0x29 => {
@@ -458,7 +493,7 @@ instruction!(AND, vec![0x29, 0x25, 0x35, 0x2D, 0x3D, 0x39, 0x21, 0x31],
     }
 );
 instruction!(EOR, vec![0x49, 0x45, 0x55, 0x4D, 0x5D, 0x59, 0x41, 0x51],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         let mut memory = 0x00;
         match opcode {
             0x49 => {
@@ -520,7 +555,7 @@ instruction!(EOR, vec![0x49, 0x45, 0x55, 0x4D, 0x5D, 0x59, 0x41, 0x51],
     }
 );
 instruction!(ADC, vec![0x69, 0x65, 0x75, 0x6D, 0x7D, 0x79, 0x61, 0x71],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         let mut memory = 0x00;
         match opcode {
             0x69 => {
@@ -586,16 +621,16 @@ instruction!(ADC, vec![0x69, 0x65, 0x75, 0x6D, 0x7D, 0x79, 0x61, 0x71],
     }
 );
 instruction!(STA, vec![0x85, 0x95, 0x8D, 0x9D, 0x99, 0x81, 0x91],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         match opcode {
             0x85 => {
                 let address = cpu.registers.increment_pc();
-                cpu.set_memory_at_address(address & 0xFF, cpu.registers.ac as i16);
+                cpu.set_memory_at_address(address & 0xFF, cpu.registers.ac);
             },
             0x95 => {
                 let address = cpu.registers.increment_pc();
                 cpu.set_memory_at_address((address & 0xFF)
-                    .wrapping_add(cpu.registers.x as u16), cpu.registers.ac as i16);
+                    .wrapping_add(cpu.registers.x as u16), cpu.registers.ac);
             },
             0x8D => {
                 let fhalf_address = cpu.registers.increment_pc();
@@ -603,7 +638,7 @@ instruction!(STA, vec![0x85, 0x95, 0x8D, 0x9D, 0x99, 0x81, 0x91],
                 let shalf_address = cpu.registers.increment_pc();
                 let shalf_memory = cpu.get_umemory_at_address(shalf_address);
                 let address = (fhalf_memory as u16) & ((shalf_memory as u16) << 8);
-                cpu.set_memory_at_address(address, cpu.registers.ac as i16);
+                cpu.set_memory_at_address(address, cpu.registers.ac);
             },
             0x9D => {
                 let fhalf_address = cpu.registers.increment_pc();
@@ -612,7 +647,7 @@ instruction!(STA, vec![0x85, 0x95, 0x8D, 0x9D, 0x99, 0x81, 0x91],
                 let shalf_memory = cpu.get_umemory_at_address(shalf_address);
                 let address = (fhalf_memory as u16) & ((shalf_memory as u16) << 8);
                 cpu.set_memory_at_address(address.wrapping_add(cpu.registers.x as u16),
-                    cpu.registers.ac as i16);
+                    cpu.registers.ac);
             },
             0x99 => {
                 let fhalf_address = cpu.registers.increment_pc();
@@ -621,19 +656,19 @@ instruction!(STA, vec![0x85, 0x95, 0x8D, 0x9D, 0x99, 0x81, 0x91],
                 let shalf_memory = cpu.get_umemory_at_address(shalf_address);
                 let address = (fhalf_memory as u16) & ((shalf_memory as u16) << 8);
                 cpu.set_memory_at_address(address.wrapping_add(cpu.registers.y as u16),
-                    cpu.registers.ac as i16);
+                    cpu.registers.ac);
             },
             0x81 => {
                 let og_address = cpu.registers.increment_pc();
                 let address = cpu.get_umemory_at_address(
                     og_address.wrapping_add(cpu.registers.x as u16));
-                cpu.set_memory_at_address(address as u16, cpu.registers.ac as i16);
+                cpu.set_memory_at_address(address as u16, cpu.registers.ac);
             },
             0x91 => {
                 let og_address = cpu.registers.increment_pc();
                 let address = cpu.get_umemory_at_address(
                     og_address.wrapping_add(cpu.registers.y as u16));
-                cpu.set_memory_at_address(address as u16, cpu.registers.ac as i16);
+                cpu.set_memory_at_address(address as u16, cpu.registers.ac);
             }
             _ => {}
         }
@@ -646,17 +681,17 @@ instruction!(LDA, vec![0xA1, 0xB1, 0xA5, 0xB5],
     }
 );
 instruction!(CMP, vec![0xC1, 0xD1, 0xC5, 0xD5],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(SBC, vec![0xE1, 0xF1, 0xE5, 0xF5],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(LDX, vec![0xA2, 0xA6, 0xB6],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         match opcode {
             0xA2 => {
                 cpu.registers.x = cpu.get_memory_at_address(cpu.registers.pc + 1) as u8;
@@ -667,53 +702,53 @@ instruction!(LDX, vec![0xA2, 0xA6, 0xB6],
     }
 );
 instruction!(BIT, vec![0x24],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(STY, vec![0x84, 0x94],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(ASL, vec![0x06, 0x16],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(ROL, vec![0x26, 0x36],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(LSR, vec![0x46, 0x56],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(ROR, vec![0x66, 0x76],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(STX, vec![0x86, 0x96],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(DEC, vec![0xC6, 0xD6],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 instruction!(INC, vec![0xE6, 0xF6],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );
 
 instruction!(NOP, vec![0xEA],
-    fn execute(&self, opcode: &i16, cpu: &mut CPU) -> bool {
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         true
     }
 );

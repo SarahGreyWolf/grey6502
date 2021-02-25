@@ -1,4 +1,3 @@
-use std::time::Duration;
 use std::{fmt::Display, sync::Arc};
 use std::sync::Mutex;
 
@@ -107,7 +106,7 @@ impl Registers {
 
 pub struct CPU {
     speed: std::time::Duration,
-    pub memory: Arc<Mutex<[i16; 0xFFFF]>>,
+    pub memory: Arc<Mutex<[u8; 0xFFFF]>>,
     // Possibly change this so the stack uses space in memory
     pub stack: [u8; 0xFF],
     pub registers: Registers,
@@ -139,7 +138,7 @@ impl Display for CPU {
 
 impl CPU {
     pub fn new(speed: std::time::Duration) -> Self {
-        let mem: [i16; 0xFFFF] = [0xEA; 0xFFFF];
+        let mem: [u8; 0xFFFF] = [0xEA; 0xFFFF];
         Self {
             speed,
             memory: Arc::new(Mutex::new(mem)),
@@ -180,14 +179,14 @@ impl CPU {
         self.stack[self.registers.sp.wrapping_add(1) as usize]
     }
 
-    pub fn set_memory_at_address(&mut self, address: u16, byte: i16) {
+    pub fn set_memory_at_address(&mut self, address: u16, byte: u8) {
         let memory_lock = self.memory.clone();
         let mut memory = memory_lock.lock().expect("Failed to lock memory");
         memory[address as usize] = byte;
         drop(memory);
     }
 
-    pub fn get_memory_at_address(&mut self, address: u16) -> i16 {
+    pub fn get_memory_at_address(&mut self, address: u16) -> u8 {
         let memory_lock = self.memory.clone();
         let memory = memory_lock.lock().expect("Failed to lock memory");
         let mut address = address;
@@ -210,7 +209,7 @@ impl CPU {
         out
     }
 
-    pub fn execute_instruction(&mut self, opcode: &i16) {
+    pub fn execute_instruction(&mut self, opcode: &u8) {
         let instructions = self.instructions.clone();
         let instruction = match instructions.iter().find(|i| i.get_opcodes().contains(opcode)) {
             Some(i) => i,
