@@ -197,17 +197,6 @@ impl CPU {
         drop(memory);
         out
     }
-    pub fn get_umemory_at_address(&mut self, address: u16) -> u8 {
-        let memory_lock = self.memory.clone();
-        let memory = memory_lock.lock().expect("Failed to lock memory");
-        let mut address = address;
-        if memory.len() == address as usize {
-            address = self.registers.increment_pc();
-        }
-        let out = memory[address as usize] as u8;
-        drop(memory);
-        out
-    }
 
     pub fn execute_instruction(&mut self, opcode: &u8) {
         let instructions = self.instructions.clone();
@@ -219,7 +208,7 @@ impl CPU {
         };
         if instruction.execute(opcode, self) {
             let address = self.registers.increment_pc();
-            println!("{:04x}:{:04x}", address, self.get_umemory_at_address(address));
+            println!("{:04x}:{:04x}", address, self.get_memory_at_address(address));
         }
     }
 }
