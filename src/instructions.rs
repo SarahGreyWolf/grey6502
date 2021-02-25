@@ -32,6 +32,75 @@ pub enum Mode {
     ZeropageY,
 }
 
+impl Mode {
+    fn get_memory(&self, cpu: &mut cpu::CPU) -> u8 {
+        match self {
+            Mode::Immediate => {
+                let address = cpu.registers.increment_pc();
+                cpu.get_memory_at_address(address)
+            },
+            Mode::Zeropage => {
+                let address = cpu.registers.increment_pc();
+                cpu.get_memory_at_address(address & 0xFF)
+            },
+            Mode::ZeropageX => {
+                let address = cpu.registers.increment_pc();
+                let x_register = cpu.registers.x;
+                cpu.get_memory_at_address(address.wrapping_add(x_register as u16) & 0xFF)
+            },
+            Mode::ZeropageY => {
+                let address = cpu.registers.increment_pc();
+                let y_register = cpu.registers.y;
+                cpu.get_memory_at_address(address.wrapping_add(y_register as u16) & 0xFF)
+            },
+            Mode::Absolute => {
+                let first_half_address = cpu.registers.increment_pc();
+                let first_half_memory = cpu.get_memory_at_address(first_half_address);
+                let second_half_address = cpu.registers.increment_pc();
+                let second_half_memory = cpu.get_memory_at_address(second_half_address);
+                cpu.get_memory_at_address(first_half_memory as u16 | (second_half_memory as u16) << 8)
+            },
+            Mode::AbsoluteX => {
+                let first_half_address = cpu.registers.increment_pc();
+                let first_half_memory = cpu.get_memory_at_address(first_half_address);
+                let second_half_address = cpu.registers.increment_pc();
+                let second_half_memory = cpu.get_memory_at_address(second_half_address);
+                let x_register = cpu.registers.x;
+                cpu.get_memory_at_address(
+                    (first_half_memory as u16 | (second_half_memory as u16) << 8)
+                    .wrapping_add(x_register as u16))
+            },
+            Mode::AbsoluteY => {
+                let first_half_address = cpu.registers.increment_pc();
+                let first_half_memory = cpu.get_memory_at_address(first_half_address);
+                let second_half_address = cpu.registers.increment_pc();
+                let second_half_memory = cpu.get_memory_at_address(second_half_address);
+                let y_register = cpu.registers.y;
+                cpu.get_memory_at_address(
+                    (first_half_memory as u16 | (second_half_memory as u16) << 8)
+                    .wrapping_add(y_register as u16))
+            },
+            Mode::Indirect => {
+                let og_address = cpu.registers.increment_pc();
+                let address = cpu.get_memory_at_address(og_address & 0xFF);
+                cpu.get_memory_at_address(address as u16)
+            },
+            Mode::IndirectX => {
+                let og_address = cpu.registers.increment_pc();
+                let address = cpu.get_memory_at_address(
+                    (og_address.wrapping_add(cpu.registers.x as u16)) & 0xFF);
+                cpu.get_memory_at_address(address as u16)
+            },
+            Mode::IndirectY => {
+                let og_address = cpu.registers.increment_pc();
+                let address = cpu.get_memory_at_address(
+                    (og_address.wrapping_add(cpu.registers.y as u16)) & 0xFF);
+                cpu.get_memory_at_address(address as u16)
+            },
+            _ => {0}
+        }
+    }
+}
 pub trait Instruction {
     fn get_opcodes(&self) -> Vec<u8>;
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool;
