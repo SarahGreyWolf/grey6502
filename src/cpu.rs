@@ -180,6 +180,13 @@ impl CPU {
         self.stack[self.registers.sp.wrapping_add(1) as usize]
     }
 
+    pub fn set_memory_at_address(&mut self, address: u16, byte: i16) {
+        let memory_lock = self.memory.clone();
+        let mut memory = memory_lock.lock().expect("Failed to lock memory");
+        memory[address as usize] = byte;
+        drop(memory);
+    }
+
     pub fn get_memory_at_address(&mut self, address: u16) -> i16 {
         let memory_lock = self.memory.clone();
         let memory = memory_lock.lock().expect("Failed to lock memory");
