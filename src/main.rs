@@ -13,8 +13,8 @@ fn main() {
     mem[2] = 0xAC;
     mem[3] = 0x00;
     mem[4] = 0x50;
-    // mem[5] = 0xC0;
-    // mem[6] = 0x10;
+    mem[5] = 0x2C;
+    mem[6] = 0x00;
 
     mem[10] = 0xD0;
     mem[11] = 0x82;

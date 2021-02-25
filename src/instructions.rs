@@ -1,4 +1,6 @@
-use crate::{CPU, cpu::StatRegister};
+use std::ops::Shl;
+
+use crate::{CPU, cpu::{self, StatRegister}};
 
 // Operates in Little-Endian, lowest byte first then highest byte
 pub enum Mode {
@@ -101,6 +103,7 @@ impl Mode {
         }
     }
 }
+
 pub trait Instruction {
     fn get_opcodes(&self) -> Vec<u8>;
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool;
@@ -372,7 +375,7 @@ instruction!(CPY, vec![0xC0, 0xC4, 0xCC],
             _ => {}
         }
         let (result, overflowed) = (cpu.registers.y).overflowing_sub(memory as u8);
-        cpu.registers.sr.negative = (result & 0x80) == 1;
+        cpu.registers.sr.negative = (result & 0x80) == 0x80;
         cpu.registers.sr.zero = result == 0;
         cpu.registers.sr.carry = overflowed;
         true
@@ -415,7 +418,7 @@ instruction!(CPX, vec![0xE0, 0xE4],
             _ => {}
         }
         let (result, overflowed) = (cpu.registers.x).overflowing_sub(memory as u8);
-        cpu.registers.sr.negative = (result & 0x80) == 1;
+        cpu.registers.sr.negative = (result & 0x80) == 0x80;
         cpu.registers.sr.zero = result == 0;
         cpu.registers.sr.carry = overflowed;
         true
@@ -749,7 +752,8 @@ instruction!(LDA, vec![0xA9, 0xA5, 0xB5, 0xAD, 0xBD, 0xB9, 0xA1, 0xB1],
         let mut memory = 0x00 as u8;
         match opcode {
             0xA9 => {
-
+                let address = cpu.registers.increment_pc();
+                memory = cpu.get_memory_at_address(address);
             },
             0xA5 => {
                 let address = cpu.registers.increment_pc();
@@ -801,52 +805,309 @@ instruction!(LDA, vec![0xA9, 0xA5, 0xB5, 0xAD, 0xBD, 0xB9, 0xA1, 0xB1],
             _ => {}
         }
         cpu.registers.ac = memory;
+        cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.ac == 0;
         true
     }
 );
-instruction!(CMP, vec![0xC1, 0xD1, 0xC5, 0xD5],
+instruction!(CMP, vec![0xC9, 0xC5, 0xD5, 0xCD, 0xDD, 0xD9, 0xC1, 0xD1],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        let mut memory: u8 = 0x00;
+        let address = cpu.registers.increment_pc();
+        match opcode {
+            0xC9 => {
+                memory = cpu.get_memory_at_address(address);
+            },
+            0xC5 => {
+                memory = cpu.get_memory_at_address(address & 0xFF);
+            },
+            0xD5 => {
+                memory = cpu.get_memory_at_address((
+                    address & 0xFF).wrapping_add(cpu.registers.x as u16));
+            },
+            0xCD => {
+                let address_first = cpu.registers.increment_pc();
+                let mem_first = cpu.get_memory_at_address(address_first);
+                let address_second = cpu.registers.increment_pc();
+                let mem_second = cpu.get_memory_at_address(address_second);
+                memory = cpu.get_memory_at_address(
+                    mem_first as u16 | (mem_second as u16) << 8);
+            },
+            0xDD => {
+                let address_first = cpu.registers.increment_pc();
+                let mem_first = cpu.get_memory_at_address(address_first);
+                let address_second = cpu.registers.increment_pc();
+                let mem_second = cpu.get_memory_at_address(address_second);
+                memory = cpu.get_memory_at_address(
+                    (mem_first as u16 | (mem_second as u16) << 8)
+                        .wrapping_add(cpu.registers.x as u16));
+            },
+            0xD9 => {
+                let address_first = cpu.registers.increment_pc();
+                let mem_first = cpu.get_memory_at_address(address_first);
+                let address_second = cpu.registers.increment_pc();
+                let mem_second = cpu.get_memory_at_address(address_second);
+                memory = cpu.get_memory_at_address(
+                    (mem_first as u16 | (mem_second as u16) << 8)
+                        .wrapping_add(cpu.registers.y as u16));
+            },
+            0xC1 => {
+                let og_address = cpu.registers.increment_pc();
+                let address = cpu.get_memory_at_address(
+                    og_address.wrapping_add(cpu.registers.x as u16));
+                memory = cpu.get_memory_at_address(address as u16);
+            },
+            0xD1 => {
+                let og_address = cpu.registers.increment_pc();
+                let address = cpu.get_memory_at_address(
+                    og_address.wrapping_add(cpu.registers.y as u16));
+                memory = cpu.get_memory_at_address(address as u16);
+            },
+            _ => {}
+        }
+        let (result, overflowed) = (cpu.registers.ac).overflowing_sub(memory as u8);
+        cpu.registers.sr.negative = (result & 0x80) == 0x80;
+        cpu.registers.sr.zero = result == 0;
+        cpu.registers.sr.carry = overflowed;
         true
     }
 );
-instruction!(SBC, vec![0xE1, 0xF1, 0xE5, 0xF5],
+instruction!(SBC, vec![0xE9, 0xE5, 0xF5, 0xED, 0xFD, 0xF9, 0xE1, 0xF1],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        let mut memory = 0x00;
+        match opcode {
+            0xE9 => {
+                let address = cpu.registers.increment_pc();
+                memory = cpu.get_memory_at_address(address);
+            },
+            0xE5 => {
+                let address = cpu.registers.increment_pc();
+                memory = cpu.get_memory_at_address(address & 0xFF);
+            },
+            0xF5 => {
+                let address = cpu.registers.increment_pc();
+                memory = cpu.get_memory_at_address(
+                    (address.wrapping_add(cpu.registers.x as u16)) & 0xFF);
+            },
+            0xED => {
+                let first_address = cpu.registers.increment_pc();
+                let first_mem = cpu.get_memory_at_address(first_address);
+                let second_address = cpu.registers.increment_pc();
+                let second_mem = cpu.get_memory_at_address(second_address);
+                memory = cpu.get_memory_at_address(first_mem as u16 | ((second_mem as u16) << 8) as u16);
+            },
+            0xFD => {
+                let first_address = cpu.registers.increment_pc();
+                let first_mem = cpu.get_memory_at_address(first_address);
+                let second_address = cpu.registers.increment_pc();
+                let second_mem = cpu.get_memory_at_address(second_address);
+                memory = cpu.get_memory_at_address(
+                    (first_mem as u16 | ((second_mem as u16) << 8) as u16)
+                    .wrapping_add(cpu.registers.x as u16));
+            },
+            0xF9 => {
+                let first_address = cpu.registers.increment_pc();
+                let first_mem = cpu.get_memory_at_address(first_address);
+                let second_address = cpu.registers.increment_pc();
+                let second_mem = cpu.get_memory_at_address(second_address);
+                memory = cpu.get_memory_at_address(
+                    (first_mem as u16 | ((second_mem as u16) << 8) as u16)
+                    .wrapping_add(cpu.registers.y as u16));
+            },
+            0xE1 => {
+                let og_address = cpu.registers.increment_pc();
+                let address = cpu.get_memory_at_address(
+                    (og_address.wrapping_add(cpu.registers.x as u16)) & 0xFF);
+                memory = cpu.get_memory_at_address(address as u16);
+            },
+            0xF1 => {
+                let og_address = cpu.registers.increment_pc();
+                let address = cpu.get_memory_at_address(
+                    (og_address.wrapping_add(cpu.registers.y as u16)) & 0xFF);
+                memory = cpu.get_memory_at_address(address as u16);
+            },
+            _ => {}
+        }
+        let (res, overflowed) = cpu.registers.ac.overflowing_sub(memory);
+        let (sres, soverflowed) = res.overflowing_sub(cpu.registers.sr.carry as u8);
+        cpu.registers.ac = sres;
+        cpu.registers.sr.carry = overflowed & soverflowed;
+        cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 1;
+        cpu.registers.sr.zero = cpu.registers.ac == 0;
+        cpu.registers.sr.overflow = overflowed & soverflowed;
         true
     }
 );
-instruction!(LDX, vec![0xA2, 0xA6, 0xB6],
+instruction!(LDX, vec![0xA2, 0xA6, 0xB6, 0xAE, 0xBE],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
         match opcode {
             0xA2 => {
-                cpu.registers.x = cpu.get_memory_at_address(cpu.registers.pc + 1) as u8;
-                true
-            }
-            _ => false
+                let address = cpu.registers.increment_pc();
+                cpu.registers.x = cpu.get_memory_at_address(address);
+            },
+            0xA6 => {
+                let address = cpu.registers.increment_pc();
+                cpu.registers.x = cpu.get_memory_at_address(address & 0xFF);
+            },
+            0xB6 => {
+                let address = cpu.registers.increment_pc();
+                cpu.registers.x = cpu.get_memory_at_address(
+                    (address & 0xFF).wrapping_add(cpu.registers.x as u16));
+            },
+            0xAE => {
+                let first_address = cpu.registers.increment_pc();
+                let first_mem = cpu.get_memory_at_address(first_address);
+                let second_address = cpu.registers.increment_pc();
+                let second_mem = cpu.get_memory_at_address(second_address);
+                cpu.registers.x = cpu.get_memory_at_address(
+                    (first_mem as u16) & (second_mem as u16) << 8
+                )
+            },
+            0xBE => {
+                let first_address = cpu.registers.increment_pc();
+                let first_mem = cpu.get_memory_at_address(first_address);
+                let second_address = cpu.registers.increment_pc();
+                let second_mem = cpu.get_memory_at_address(second_address);
+                cpu.registers.x = cpu.get_memory_at_address(
+                    ((first_mem as u16) & (second_mem as u16) << 8)
+                        .wrapping_add(cpu.registers.y as u16)
+                )
+            },
+            _ => {}
         }
-    }
-);
-instruction!(BIT, vec![0x24],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sr.negative = cpu.registers.x & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.x == 0;
         true
     }
 );
-instruction!(STY, vec![0x84, 0x94],
+instruction!(BIT, vec![0x24, 0x2C],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        let mut memory = 0x00;
+        let address = cpu.registers.increment_pc();
+        match opcode {
+            0x24 => {
+                memory = cpu.get_memory_at_address(address & 0xFF);
+            },
+            0x2C => {
+                memory = cpu.get_memory_at_address(address);
+            },
+            _ => {}
+        }
+        cpu.registers.sr.negative = memory & 0x40 == 0x40;
+        cpu.registers.sr.overflow = memory & 0x20 == 0x20;
+        cpu.registers.sr.zero = cpu.registers.ac & memory == 0;
         true
     }
 );
-instruction!(ASL, vec![0x06, 0x16],
+instruction!(STY, vec![0x84, 0x94, 0x8C],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        match opcode {
+            0x84 => {
+                let address = cpu.registers.increment_pc();
+                cpu.set_memory_at_address(address & 0xFF, cpu.registers.y);
+            },
+            0x94 => {
+                let address = cpu.registers.increment_pc();
+                cpu.set_memory_at_address((address.wrapping_add(cpu.registers.x as u16))
+                    & 0xFF, cpu.registers.y);
+            },
+            0x8C => {
+                let address = cpu.registers.increment_pc();
+                cpu.set_memory_at_address(address, cpu.registers.y);
+            },
+            _ => {}
+        }
         true
     }
 );
-instruction!(ROL, vec![0x26, 0x36],
+instruction!(ASL, vec![0x0A, 0x06, 0x16, 0x0E, 0x1E],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        let mut memory = 0x00;
+        match opcode {
+            0x0A => {
+                let (res, carry) = cpu.registers.ac.overflowing_shl(1);
+                cpu.registers.ac = res;
+                cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+                cpu.registers.sr.zero = cpu.registers.ac == 0;
+                cpu.registers.sr.carry = carry;
+            },
+            0x06 => {
+                memory = Mode::Zeropage.get_memory(cpu);
+            },
+            0x16 => {
+                memory = Mode::ZeropageX.get_memory(cpu);
+            },
+            0x0E => {
+                memory = Mode::Absolute.get_memory(cpu);
+            },
+            0x1E => {
+                memory = Mode::AbsoluteX.get_memory(cpu);
+            }
+            _ => {}
+        }
+        let (res, carry) = memory.overflowing_shl(1);
+        let address = cpu.registers.pc - 1;
+        cpu.set_memory_at_address(address, res);
+        cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.ac == 0;
+        cpu.registers.sr.carry = carry;
         true
     }
 );
-instruction!(LSR, vec![0x46, 0x56],
+instruction!(ROL, vec![0x2A, 0x26, 0x36, 0x2E, 0x3E],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        let mut memory = 0x00;
+        match opcode {
+            0x2A => {
+                let result = (cpu.registers.ac as u16).rotate_left(1);
+                cpu.registers.ac = result as u8;
+                cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+                cpu.registers.sr.zero = cpu.registers.ac == 0;
+                cpu.registers.sr.carry = result & 0x100 == 0x100;
+            },
+            0x26 => {
+                memory = Mode::Zeropage.get_memory(cpu);
+            },
+            0x36 => {
+                memory = Mode::ZeropageX.get_memory(cpu);
+            },
+            0x2E => {
+                memory = Mode::Absolute.get_memory(cpu);
+            },
+            0xeE => {
+                memory = Mode::AbsoluteX.get_memory(cpu);
+            }
+            _ => {}
+        }
+        let result = (memory as u16).rotate_left(1);
+        let address = cpu.registers.pc - 1;
+        cpu.set_memory_at_address(address, result as u8);
+        cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.ac == 0;
+        cpu.registers.sr.carry = result & 0x100 == 0x100;
+        true
+    }
+);
+instruction!(LSR, vec![0x4A, 0x46, 0x56, 0x4E, 0x5E],
+    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        match opcode {
+            0x41 => {
+
+            },
+            0x47 => {
+
+            },
+            0x56 => {
+
+            },
+            0x4E => {
+
+            },
+            0x5E => {
+
+            },
+            _ => {}
+        }
         true
     }
 );
