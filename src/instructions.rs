@@ -202,6 +202,8 @@ impl Mode {
             },
             _ => {}
         }
+        cpu.registers.sr.negative = byte & 0x80 == 0x80;
+        cpu.registers.sr.zero = byte == 0;
         cpu.set_memory_at_address(end_address, byte);
     }
 }
@@ -278,6 +280,27 @@ pub fn init_instructions() -> Vec<Box<dyn Instruction>> {
     instructions.push(Box::new(DEC::new()));
     instructions.push(Box::new(INC::new()));
     instructions.push(Box::new(NOP::new()));
+    instructions.push(Box::new(PHP::new()));
+    instructions.push(Box::new(CLC::new()));
+    instructions.push(Box::new(PLP::new()));
+    instructions.push(Box::new(SEC::new()));
+    instructions.push(Box::new(PHA::new()));
+    instructions.push(Box::new(CLI::new()));
+    instructions.push(Box::new(PLA::new()));
+    instructions.push(Box::new(SEI::new()));
+    instructions.push(Box::new(DEY::new()));
+    instructions.push(Box::new(TYA::new()));
+    instructions.push(Box::new(TAY::new()));
+    instructions.push(Box::new(CLV::new()));
+    instructions.push(Box::new(INY::new()));
+    instructions.push(Box::new(CLD::new()));
+    instructions.push(Box::new(INX::new()));
+    instructions.push(Box::new(SED::new()));
+    instructions.push(Box::new(TXA::new()));
+    instructions.push(Box::new(TXS::new()));
+    instructions.push(Box::new(TAX::new()));
+    instructions.push(Box::new(TSX::new()));
+    instructions.push(Box::new(DEX::new()));
 
     instructions
 }
@@ -1283,39 +1306,214 @@ instruction!(DEC, vec![0xC6, 0xD6, 0xCE, 0xDE],
                 let memory = Mode::Zeropage.get_memory(cpu);
                 cpu.registers.decrement_pc();
                 cpu.registers.decrement_pc();
-                Mode::Zeropage.set_memory(memory, cpu);
+                Mode::Zeropage.set_memory(memory.wrapping_sub(1), cpu);
             },
             0xD6 => {
                 let memory = Mode::ZeropageX.get_memory(cpu);
                 cpu.registers.decrement_pc();
                 cpu.registers.decrement_pc();
-                Mode::ZeropageX.set_memory(memory, cpu);
+                Mode::ZeropageX.set_memory(memory.wrapping_sub(1), cpu);
             },
             0xCE => {
                 let memory = Mode::Absolute.get_memory(cpu);
                 cpu.registers.decrement_pc();
                 cpu.registers.decrement_pc();
-                Mode::AbsoluteX.set_memory(memory, cpu);
+                Mode::AbsoluteX.set_memory(memory.wrapping_sub(1), cpu);
             },
             0xDE => {
                 let memory = Mode::Absolute.get_memory(cpu);
                 cpu.registers.decrement_pc();
                 cpu.registers.decrement_pc();
-                Mode::AbsoluteX.set_memory(memory, cpu);
+                Mode::AbsoluteX.set_memory(memory.wrapping_sub(1), cpu);
             },
             _ => {}
         }
         true
     }
 );
-instruction!(INC, vec![0xE6, 0xF6],
+instruction!(INC, vec![0xE6, 0xF6, 0xEE, 0xFE],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        match opcode {
+            0xE6 => {
+                let memory = Mode::Zeropage.get_memory(cpu);
+                cpu.registers.decrement_pc();
+                cpu.registers.decrement_pc();
+                Mode::Zeropage.set_memory(memory.wrapping_add(1), cpu);
+            },
+            0xF6 => {
+                let memory = Mode::ZeropageX.get_memory(cpu);
+                cpu.registers.decrement_pc();
+                cpu.registers.decrement_pc();
+                Mode::ZeropageX.set_memory(memory.wrapping_add(1), cpu);
+            },
+            0xEE => {
+                let memory = Mode::Absolute.get_memory(cpu);
+                cpu.registers.decrement_pc();
+                cpu.registers.decrement_pc();
+                Mode::AbsoluteX.set_memory(memory.wrapping_add(1), cpu);
+            },
+            0xFE => {
+                let memory = Mode::Absolute.get_memory(cpu);
+                cpu.registers.decrement_pc();
+                cpu.registers.decrement_pc();
+                Mode::AbsoluteX.set_memory(memory.wrapping_add(1), cpu);
+            },
+            _ => {}
+        }
+        true
+    }
+);
+instruction!(PHP, vec![0x08],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.push_to_stack(u8::from(cpu.registers.sr));
+        true
+    }
+);
+instruction!(CLC, vec![0x18],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sr.carry = false;
+        true
+    }
+);
+instruction!(PLP, vec![0x28],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sr = StatRegister::from(cpu.pull_from_stack());
+        true
+    }
+);
+instruction!(SEC, vec![0x38],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sr.carry = true;
+        true
+    }
+);
+instruction!(PHA, vec![0x48],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.push_to_stack(cpu.registers.ac);
+        true
+    }
+);
+instruction!(CLI, vec![0x58],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sr.interrupt = false;
+        true
+    }
+);
+instruction!(PLA, vec![0x68],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.ac = cpu.pull_from_stack();
+        cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.ac == 0;
+        true
+    }
+);
+instruction!(SEI, vec![0x78],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sr.interrupt = true;
+        true
+    }
+);
+instruction!(DEY, vec![0x88],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.y = cpu.registers.y.wrapping_sub(1);
+        cpu.registers.sr.negative = cpu.registers.y & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.y == 0;
+        true
+    }
+);
+instruction!(TYA, vec![0x98],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.ac = cpu.registers.y;
+        cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.ac == 0;
+        true
+    }
+);
+instruction!(TAY, vec![0xA8],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.y = cpu.registers.ac;
+        cpu.registers.sr.negative = cpu.registers.y & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.y == 0;
+        true
+    }
+);
+instruction!(CLV, vec![0xB8],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sr.overflow = true;
+        true
+    }
+);
+instruction!(INY, vec![0xC8],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.y = cpu.registers.y.wrapping_add(1);
+        cpu.registers.sr.negative = cpu.registers.y & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.y == 0;
+        true
+    }
+);
+instruction!(CLD, vec![0xD8],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sr.decimal = false;
+        true
+    }
+);
+instruction!(INX, vec![0xE8],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.x = cpu.registers.x.wrapping_add(1);
+        cpu.registers.sr.negative = cpu.registers.x & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.x == 0;
+        true
+    }
+);
+instruction!(SED, vec![0xF8],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sr.decimal = true;
+        true
+    }
+);
+instruction!(TXA, vec![0x8A],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.ac = cpu.registers.x;
+        cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.ac == 0;
+        true
+    }
+);
+instruction!(TXS, vec![0x9A],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.sp = cpu.registers.x;
+        cpu.registers.sr.negative = cpu.registers.sp & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.sp == 0;
+        true
+    }
+);
+instruction!(TAX, vec![0xAA],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.x = cpu.registers.ac;
+        cpu.registers.sr.negative = cpu.registers.x & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.x == 0;
+        true
+    }
+);
+instruction!(TSX, vec![0xBA],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.x = cpu.registers.sp;
+        cpu.registers.sr.negative = cpu.registers.x & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.x == 0;
+        true
+    }
+);
+instruction!(DEX, vec![0xCA],
+    fn execute(&self, _opcode: &u8, cpu: &mut CPU) -> bool {
+        cpu.registers.x = cpu.registers.x.wrapping_sub(1);
+        cpu.registers.sr.negative = cpu.registers.x & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.x == 0;
         true
     }
 );
 
 instruction!(NOP, vec![0xEA],
-    fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+    fn execute(&self, _opcode: &u8, _cpu: &mut CPU) -> bool {
         true
     }
 );

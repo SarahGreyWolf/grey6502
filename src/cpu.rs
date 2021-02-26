@@ -106,7 +106,7 @@ impl Registers {
 
 pub struct CPU {
     speed: std::time::Duration,
-    pub memory: Arc<Mutex<[u8; 0xFFFF]>>,
+    pub memory: Arc<Mutex<[u8; 65536]>>,
     // Possibly change this so the stack uses space in memory
     pub stack: [u8; 0xFF],
     pub registers: Registers,
@@ -138,7 +138,7 @@ impl Display for CPU {
 
 impl CPU {
     pub fn new(speed: std::time::Duration) -> Self {
-        let mem: [u8; 0xFFFF] = [0xEA; 0xFFFF];
+        let mem: [u8; 65536] = [0xEA; 65536];
         Self {
             speed,
             memory: Arc::new(Mutex::new(mem)),

@@ -1,3 +1,4 @@
 /target
 Cargo.lock
 /.idea
+6502_functional_test.bin
