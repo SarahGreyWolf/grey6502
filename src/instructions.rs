@@ -1161,11 +1161,11 @@ instruction!(ROL, vec![0x2A, 0x26, 0x36, 0x2E, 0x3E],
         let mut memory = 0x00;
         match opcode {
             0x2A => {
-                let result = (cpu.registers.ac as u16).rotate_left(1);
+                let result = cpu.registers.ac.rotate_left(1);
                 cpu.registers.ac = result as u8;
                 cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
                 cpu.registers.sr.zero = cpu.registers.ac == 0;
-                cpu.registers.sr.carry = result & 0x100 == 0x100;
+                cpu.registers.sr.carry = false;
             },
             0x26 => {
                 memory = Mode::Zeropage.get_memory(cpu);
@@ -1176,55 +1176,135 @@ instruction!(ROL, vec![0x2A, 0x26, 0x36, 0x2E, 0x3E],
             0x2E => {
                 memory = Mode::Absolute.get_memory(cpu);
             },
-            0xeE => {
+            0x3E => {
                 memory = Mode::AbsoluteX.get_memory(cpu);
             }
             _ => {}
         }
-        let result = (memory as u16).rotate_left(1);
+        let result = memory.rotate_left(1);
         let address = cpu.registers.pc - 1;
         cpu.set_memory_at_address(address, result as u8);
         cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
         cpu.registers.sr.zero = cpu.registers.ac == 0;
-        cpu.registers.sr.carry = result & 0x100 == 0x100;
+        cpu.registers.sr.carry = false;
         true
     }
 );
 instruction!(LSR, vec![0x4A, 0x46, 0x56, 0x4E, 0x5E],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        let mut memory: u8 = 0x00;
         match opcode {
-            0x41 => {
-
+            0x4A => {
+                let (res, carry) = cpu.registers.ac.overflowing_shr(1);
+                cpu.registers.ac = res;
+                cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+                cpu.registers.sr.zero = cpu.registers.ac == 0;
+                cpu.registers.sr.carry = carry;
             },
-            0x47 => {
-
+            0x46 => {
+                memory = Mode::Zeropage.get_memory(cpu);
             },
             0x56 => {
-
+                memory = Mode::ZeropageX.get_memory(cpu);
             },
             0x4E => {
-
+                memory = Mode::Absolute.get_memory(cpu);
             },
             0x5E => {
-
+                memory = Mode::AbsoluteX.get_memory(cpu);
             },
             _ => {}
         }
+        let (res, carry) = memory.overflowing_shr(1);
+        let address = cpu.registers.pc - 1;
+        cpu.set_memory_at_address(address, res);
+        cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.ac == 0;
+        cpu.registers.sr.carry = carry;
         true
     }
 );
-instruction!(ROR, vec![0x66, 0x76],
+instruction!(ROR, vec![0x6A, 0x66, 0x76, 0x6E, 0x7E],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        let mut memory = 0x00;
+        match opcode {
+            0x6A => {
+                let result = cpu.registers.ac.rotate_right(1);
+                cpu.registers.ac = result as u8;
+                cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+                cpu.registers.sr.zero = cpu.registers.ac == 0;
+                cpu.registers.sr.carry = false;
+            },
+            0x66 => {
+                memory = Mode::Zeropage.get_memory(cpu);
+            },
+            0x76 => {
+                memory = Mode::ZeropageX.get_memory(cpu);
+            },
+            0x6E => {
+                memory = Mode::Absolute.get_memory(cpu);
+            },
+            0x7E => {
+                memory = Mode::AbsoluteX.get_memory(cpu);
+            }
+            _ => {}
+        }
+        let result = memory.rotate_right(1);
+        let address = cpu.registers.pc - 1;
+        cpu.set_memory_at_address(address, result);
+        cpu.registers.sr.negative = cpu.registers.ac & 0x80 == 0x80;
+        cpu.registers.sr.zero = cpu.registers.ac == 0;
+        cpu.registers.sr.carry = false;
         true
     }
 );
-instruction!(STX, vec![0x86, 0x96],
+instruction!(STX, vec![0x86, 0x96, 0x8E],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        match opcode {
+            0x86 => {
+                Mode::Zeropage.set_memory(cpu.registers.x, cpu);
+            },
+            0x96 => {
+                Mode::ZeropageY.set_memory(cpu.registers.x, cpu);
+            },
+            0x8E => {
+                Mode::Absolute.set_memory(cpu.registers.x, cpu);
+            },
+            _ => {}
+        }
+        println!("{:04x}", cpu.get_memory_at_address(0x4200));
         true
     }
 );
-instruction!(DEC, vec![0xC6, 0xD6],
+instruction!(DEC, vec![0xC6, 0xD6, 0xCE, 0xDE],
     fn execute(&self, opcode: &u8, cpu: &mut CPU) -> bool {
+        match opcode {
+            0xC6 => {
+                let memory = Mode::Zeropage.get_memory(cpu);
+                cpu.registers.decrement_pc();
+                cpu.registers.decrement_pc();
+                Mode::Zeropage.set_memory(memory, cpu);
+            },
+            0xD6 => {
+                let memory = Mode::ZeropageX.get_memory(cpu);
+                cpu.registers.decrement_pc();
+                cpu.registers.decrement_pc();
+                Mode::ZeropageX.set_memory(memory, cpu);
+            },
+            0xCE => {
+                let memory = Mode::Absolute.get_memory(cpu);
+                cpu.registers.decrement_pc();
+                cpu.registers.decrement_pc();
+                Mode::AbsoluteX.set_memory(memory, cpu);
+            },
+            0xDE => {
+                let memory = Mode::Absolute.get_memory(cpu);
+                cpu.registers.decrement_pc();
+                cpu.registers.decrement_pc();
+                Mode::AbsoluteX.set_memory(memory, cpu);
+            },
+            _ => {}
+        }
         true
     }
 );

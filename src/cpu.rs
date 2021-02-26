@@ -207,7 +207,7 @@ impl CPU {
             }
         };
         if instruction.execute(opcode, self) {
-            let address = self.registers.increment_pc();
+            let _address = self.registers.increment_pc();
         }
     }
 }
