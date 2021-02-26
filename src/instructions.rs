@@ -36,31 +36,43 @@ pub enum Mode {
 
 impl Mode {
     fn get_memory(&self, cpu: &mut cpu::CPU) -> u8 {
+        let mut end_address: u16 = 0x0000;
         match self {
             Mode::Immediate => {
-                let address = cpu.registers.increment_pc();
-                cpu.get_memory_at_address(address)
+                end_address = cpu.registers.increment_pc();
             },
             Mode::Zeropage => {
-                let address = cpu.registers.increment_pc();
-                cpu.get_memory_at_address(address & 0xFF)
+                let mut address = cpu.registers.increment_pc();
+                let f_mem_address = cpu.get_memory_at_address(address);
+                address = cpu.registers.increment_pc();
+                let s_mem_address = cpu.get_memory_at_address(address);
+                end_address = 
+                (f_mem_address as u16 | (s_mem_address as u16) << 8) & 0xFF;
             },
             Mode::ZeropageX => {
-                let address = cpu.registers.increment_pc();
-                let x_register = cpu.registers.x;
-                cpu.get_memory_at_address(address.wrapping_add(x_register as u16) & 0xFF)
+                let mut address = cpu.registers.increment_pc();
+                let f_mem_address = cpu.get_memory_at_address(address);
+                address = cpu.registers.increment_pc();
+                let s_mem_address = cpu.get_memory_at_address(address);
+                end_address = 
+                (f_mem_address as u16 | (s_mem_address as u16) << 8)
+                    .wrapping_add(cpu.registers.x as u16) & 0xFF;
             },
             Mode::ZeropageY => {
-                let address = cpu.registers.increment_pc();
-                let y_register = cpu.registers.y;
-                cpu.get_memory_at_address(address.wrapping_add(y_register as u16) & 0xFF)
+                let mut address = cpu.registers.increment_pc();
+                let f_mem_address = cpu.get_memory_at_address(address);
+                address = cpu.registers.increment_pc();
+                let s_mem_address = cpu.get_memory_at_address(address);
+                end_address = 
+                (f_mem_address as u16 | (s_mem_address as u16) << 8)
+                    .wrapping_add(cpu.registers.y as u16) & 0xFF;
             },
             Mode::Absolute => {
                 let first_half_address = cpu.registers.increment_pc();
                 let first_half_memory = cpu.get_memory_at_address(first_half_address);
                 let second_half_address = cpu.registers.increment_pc();
                 let second_half_memory = cpu.get_memory_at_address(second_half_address);
-                cpu.get_memory_at_address(first_half_memory as u16 | (second_half_memory as u16) << 8)
+                end_address = first_half_memory as u16 | (second_half_memory as u16) << 8;
             },
             Mode::AbsoluteX => {
                 let first_half_address = cpu.registers.increment_pc();
@@ -68,9 +80,8 @@ impl Mode {
                 let second_half_address = cpu.registers.increment_pc();
                 let second_half_memory = cpu.get_memory_at_address(second_half_address);
                 let x_register = cpu.registers.x;
-                cpu.get_memory_at_address(
-                    (first_half_memory as u16 | (second_half_memory as u16) << 8)
-                    .wrapping_add(x_register as u16))
+                end_address = (first_half_memory as u16 | (second_half_memory as u16) << 8)
+                    .wrapping_add(x_register as u16);
             },
             Mode::AbsoluteY => {
                 let first_half_address = cpu.registers.increment_pc();
@@ -78,29 +89,120 @@ impl Mode {
                 let second_half_address = cpu.registers.increment_pc();
                 let second_half_memory = cpu.get_memory_at_address(second_half_address);
                 let y_register = cpu.registers.y;
-                cpu.get_memory_at_address(
-                    (first_half_memory as u16 | (second_half_memory as u16) << 8)
-                    .wrapping_add(y_register as u16))
+                end_address = (first_half_memory as u16 | (second_half_memory as u16) << 8)
+                    .wrapping_add(y_register as u16);
             },
             Mode::Indirect => {
-                let og_address = cpu.registers.increment_pc();
-                let address = cpu.get_memory_at_address(og_address & 0xFF);
-                cpu.get_memory_at_address(address as u16)
+                let f_og_address = cpu.registers.increment_pc();
+                let f_address = cpu.get_memory_at_address(f_og_address);
+                let s_og_address = cpu.registers.increment_pc();
+                let s_address = cpu.get_memory_at_address(s_og_address);
+                end_address = f_address as u16 | (s_address as u16) << 8;
             },
             Mode::IndirectX => {
-                let og_address = cpu.registers.increment_pc();
-                let address = cpu.get_memory_at_address(
-                    (og_address.wrapping_add(cpu.registers.x as u16)) & 0xFF);
-                cpu.get_memory_at_address(address as u16)
+                let f_og_address = cpu.registers.increment_pc();
+                let f_address = cpu.get_memory_at_address(f_og_address);
+                let s_og_address = cpu.registers.increment_pc();
+                let s_address = cpu.get_memory_at_address(s_og_address);
+                end_address = (f_address as u16 | (s_address as u16) << 8)
+                    .wrapping_add(cpu.registers.x as u16);
             },
             Mode::IndirectY => {
-                let og_address = cpu.registers.increment_pc();
-                let address = cpu.get_memory_at_address(
-                    (og_address.wrapping_add(cpu.registers.y as u16)) & 0xFF);
-                cpu.get_memory_at_address(address as u16)
+                let f_og_address = cpu.registers.increment_pc();
+                let f_address = cpu.get_memory_at_address(f_og_address);
+                let s_og_address = cpu.registers.increment_pc();
+                let s_address = cpu.get_memory_at_address(s_og_address);
+                end_address = (f_address as u16 | (s_address as u16) << 8)
+                    .wrapping_add(cpu.registers.y as u16);
             },
-            _ => {0}
+            _ => {}
         }
+        cpu.get_memory_at_address(end_address)
+    }
+
+    fn set_memory(&self, byte: u8, cpu: &mut cpu::CPU) {
+        let mut end_address: u16 = 0x0000;
+        match self {
+            Mode::Immediate => {
+                end_address = cpu.registers.increment_pc();
+            },
+            Mode::Zeropage => {
+                let mut address = cpu.registers.increment_pc();
+                let f_mem_address = cpu.get_memory_at_address(address);
+                address = cpu.registers.increment_pc();
+                let s_mem_address = cpu.get_memory_at_address(address);
+                end_address = 
+                (f_mem_address as u16 | (s_mem_address as u16) << 8) & 0xFF;
+            },
+            Mode::ZeropageX => {
+                let mut address = cpu.registers.increment_pc();
+                let f_mem_address = cpu.get_memory_at_address(address);
+                address = cpu.registers.increment_pc();
+                let s_mem_address = cpu.get_memory_at_address(address);
+                end_address = 
+                (f_mem_address as u16 | (s_mem_address as u16) << 8)
+                    .wrapping_add(cpu.registers.x as u16) & 0xFF;
+            },
+            Mode::ZeropageY => {
+                let mut address = cpu.registers.increment_pc();
+                let f_mem_address = cpu.get_memory_at_address(address);
+                address = cpu.registers.increment_pc();
+                let s_mem_address = cpu.get_memory_at_address(address);
+                end_address = 
+                (f_mem_address as u16 | (s_mem_address as u16) << 8)
+                    .wrapping_add(cpu.registers.y as u16) & 0xFF;
+            },
+            Mode::Absolute => {
+                let first_half_address = cpu.registers.increment_pc();
+                let first_half_memory = cpu.get_memory_at_address(first_half_address);
+                let second_half_address = cpu.registers.increment_pc();
+                let second_half_memory = cpu.get_memory_at_address(second_half_address);
+                end_address = first_half_memory as u16 | (second_half_memory as u16) << 8;
+            },
+            Mode::AbsoluteX => {
+                let first_half_address = cpu.registers.increment_pc();
+                let first_half_memory = cpu.get_memory_at_address(first_half_address);
+                let second_half_address = cpu.registers.increment_pc();
+                let second_half_memory = cpu.get_memory_at_address(second_half_address);
+                let x_register = cpu.registers.x;
+                end_address = (first_half_memory as u16 | (second_half_memory as u16) << 8)
+                .wrapping_add(x_register as u16);
+            },
+            Mode::AbsoluteY => {
+                let first_half_address = cpu.registers.increment_pc();
+                let first_half_memory = cpu.get_memory_at_address(first_half_address);
+                let second_half_address = cpu.registers.increment_pc();
+                let second_half_memory = cpu.get_memory_at_address(second_half_address);
+                let y_register = cpu.registers.y;
+                end_address = (first_half_memory as u16 | (second_half_memory as u16) << 8)
+                    .wrapping_add(y_register as u16);
+            },
+            Mode::Indirect => {
+                let f_og_address = cpu.registers.increment_pc();
+                let f_address = cpu.get_memory_at_address(f_og_address);
+                let s_og_address = cpu.registers.increment_pc();
+                let s_address = cpu.get_memory_at_address(s_og_address);
+                end_address = f_address as u16 | (s_address as u16) << 8;
+            },
+            Mode::IndirectX => {
+                let f_og_address = cpu.registers.increment_pc();
+                let f_address = cpu.get_memory_at_address(f_og_address);
+                let s_og_address = cpu.registers.increment_pc();
+                let s_address = cpu.get_memory_at_address(s_og_address);
+                end_address = (f_address as u16 | (s_address as u16) << 8)
+                    .wrapping_add(cpu.registers.x as u16);
+            },
+            Mode::IndirectY => {
+                let f_og_address = cpu.registers.increment_pc();
+                let f_address = cpu.get_memory_at_address(f_og_address);
+                let s_og_address = cpu.registers.increment_pc();
+                let s_address = cpu.get_memory_at_address(s_og_address);
+                end_address = (f_address as u16 | (s_address as u16) << 8)
+                    .wrapping_add(cpu.registers.y as u16);
+            },
+            _ => {}
+        }
+        cpu.set_memory_at_address(end_address, byte);
     }
 }
 
